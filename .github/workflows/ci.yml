@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build # includes the TypeScript type-check (tsc -b)
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and start the containers
+        run: docker compose up --build --detach --wait
+      - name: Smoke test through nginx (same URLs a user would hit)
+        run: |
+          curl --fail --silent --show-error http://localhost:8080/ | grep -q "WindSight"
+          curl --fail --silent --show-error http://localhost:8080/api/meta
+          curl --fail --silent --show-error "http://localhost:8080/api/day-ahead?date=2026-01-10&gate=09:20" > /dev/null
+          curl --fail --silent --show-error http://localhost:8080/api/accuracy > /dev/null
+          echo "Docker smoke test passed"
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Stop the containers
+        if: always()
+        run: docker compose down

@@ -1,5 +1,4 @@
 -r requirements.txt
-uvicorn==0.54.0
 requests==2.34.2
 pytest==9.1.1
 httpx2==2.16.0
